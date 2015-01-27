@@ -1,0 +1,102 @@
+#######################################################################################
+#																					  #
+#              Applications															  #
+#																					  #	
+#######################################################################################
+
+
+#########################
+#Novoalign
+#########################
+
+1:novoalign:/rockfish/app/novoalign/2.08.01/::COMMENT:-r None -k 
+
+#########################
+#BWA
+#########################
+
+2:bwa mem:/rockfish/app/bwa/0.6.2/::COMMENT:-t 8 
+
+#########################
+#Tophat
+#########################
+
+3:tophat2:/rockfish/app/tophat/2.0.13/::COMMENT:-p 8
+
+#########################
+#Picard
+#########################
+
+10:SortSam.jar:/rockfish/app/picard/1.114/:::VERBOSITY=ERROR QUIET=true VALIDATION_STRINGENCY=SILENT CREATE_INDEX=true SO=coordinate COMPRESSION_LEVEL=5 MAX_RECORDS_IN_RAM=5000000 TMP_DIR=.
+11:FixMateInformation.jar:/rockfish/app/picard/1.114/:::VERBOSITY=ERROR QUIET=true VALIDATION_STRINGENCY=SILENT SO=coordinate CREATE_INDEX=true TMP_DIR=.
+12:BuildBamIndex.jar:/rockfish/app/picard/1.114/:::VERBOSITY=ERROR QUIET=true VALIDATION_STRINGENCY=SILENT
+13:MarkDuplicates.jar:/rockfish/app/picard/1.114/:::VERBOSITY=ERROR QUIET=true VALIDATION_STRINGENCY=SILENT REMOVE_DUPLICATES=true ASSUME_SORTED=true TMP_DIR=.
+14:CollectRnaSeqMetrics.jar:/rockfish/app/picard/1.114/:::VERBOSITY=ERROR QUIET=true VALIDATION_STRINGENCY=SILENT REMOVE_DUPLICATES=true ASSUME_SORTED=true TMP_DIR=.
+15:SortSam.jar:/rockfish/app/picard/1.114/:::VERBOSITY=ERROR QUIET=true VALIDATION_STRINGENCY=SILENT CREATE_INDEX=true SO=queryname COMPRESSION_LEVEL=5 MAX_RECORDS_IN_RAM=5000000 TMP_DIR=.
+16:ReorderSam.jar:/rockfish/app/picard/1.114/:::CREATE_INDEX=true ALLOW_INCOMPLETE_DICT_CONCORDANCE=true
+
+#########################
+#cufflink
+#########################
+20:cufflinks:/rockfish/app/cufflinks/2.2.1/:::-p 8 
+
+#########################
+#GATK
+#########################
+
+30:GenomeAnalysisTK.jar -T IndelRealigner:/rockfish/app/gatk/3.1-1/:hg19:COMMENT:
+
+#always put "31,32" together
+31:GenomeAnalysisTK.jar -T BaseRecalibrator:/rockfish/app/gatk/3.1-1/:hg19:COMMENT: -knownSites hg19.1000G_EUR_0.05.vcf
+32:GenomeAnalysisTK.jar -T PrintReads:/rockfish/app/gatk/3.1-1/:hg19:COMMENT:
+
+33:GenomeAnalysisTK.jar -T DepthOfCoverage:/rockfish/app/gatk/3.1-1/:hg19:COMMENT:-baseCounts -omitIntervals -omitLocusTable -omitSampleSummary
+
+34:GenomeAnalysisTK.jar -T ReduceReads:/rockfish/app/gatk/3.1-1/::COMMENT:
+
+
+
+#11:GenomeAnalysisTK.jar -T UnifiedGenotyper:/rockfish/app/gatk/3.1-1/::COMMENT:-glm BOTH --dbsnp 1000g.ceu.vcf -stand_call_conf 50.0 -stand_emit_conf 10.0 -dcov 50.0
+40:GenomeAnalysisTK.jar -T UnifiedGenotyper:/rockfish/app/gatk/3.1-1/:hg19:COMMENT:-glm BOTH -stand_call_conf 50.0 -stand_emit_conf 10.0 -dcov 200 --dbsnp hg19.dbsnp.vcf
+41:GenomeAnalysisTK.jar -T HaplotypeCaller:/rockfish/app/gatk/3.1-1/:hg19:COMMENT:-stand_call_conf 50.0 -stand_emit_conf 10.0 -dcov 200 --dbsnp hg19.dbsnp.vcf
+
+
+#always put "42,43,44" together
+#42:GenomeAnalysisTK.jar -T VariantRecalibrator:/rockfish/app/gatk/3.1-1/:hg19:COMMENT:-mode BOTH -resource:hapmap,known=false,training=true,truth=true,prior=15.0 hg19.dbsnp.vcf -resource:omni,known=false,training=true,truth=false,prior=12.0 hg19.dbsnp.vcf -resource:dbsnp,known=true,training=false,truth=false,prior=8.0 hg19.dbsnp.vcf -an QD -an DP -an ReadPosRankSum -an MQRankSum -an FS -an MQ --maxGaussians 4
+#42:GenomeAnalysisTK.jar -T VariantRecalibrator:/rockfish/app/gatk/3.1-1/:hg19:COMMENT:-mode INDEL -an QD -an DP -an ReadPosRankSum -an MQRankSum -an FS -an MQ --maxGaussians 4
+#42:GenomeAnalysisTK.jar -T VariantRecalibrator:/rockfish/app/gatk/3.1-1/:hg19:COMMENT:-mode SNP -an QD -an DP -an ReadPosRankSum -an MQRankSum -an FS -an MQ --maxGaussians 4
+42:GenomeAnalysisTK.jar -T VariantRecalibrator:/rockfish/app/gatk/3.1-1/:hg19:COMMENT:-mode BOTH -resource:hapmap,known=false,training=true,truth=true,prior=15.0 hg19.hapmap_3.3.vcf -resource:omni,known=false,training=true,truth=false,prior=12.0 hg19.1000G_omni2.5.vcf -resource:dbsnp,known=true,training=false,truth=false,prior=8.0 hg19.dbsnp.vcf -an QD -an DP -an ReadPosRankSum -an FS -an MQ
+43:GenomeAnalysisTK.jar -T ApplyRecalibration:/rockfish/app/gatk/3.1-1/:hg19:COMMENT:-mode BOTH --ts_filter_level 99
+44:GenomeAnalysisTK.jar -T SelectVariants:/rockfish/app/gatk/3.1-1/:hg19:COMMENT:-select "VQSLOD>4.0"
+
+#45:GenomeAnalysisTK.jar -T VariantFiltration:/rockfish/app/gatk/3.1-1/:hg19:COMMENT:-cluster 3 -window 10 --filterName "SNP" --filterExpression "QD<2.0||MQ<40.0||FS>60.0||HaplotypeScore>13.0" --filterName "INDEL" --filterExpression "QD<2.0||FS>200.0"
+#46:GenomeAnalysisTK.jar -T VariantFiltration:/rockfish/app/gatk/3.1-1/:hg19:COMMENT:--filterName "INDEL" --filterExpression "QD<2.0||FS>200.0"
+
+#########################
+#Samtools
+#########################
+
+50:samtools mpileup:/rockfish/app/samtools/0.1.19/::COMMENT:
+51:samtools merge:/rockfish/app/samtools/0.1.19/::COMMENT:
+
+#######################################################################################
+#																					  #
+#              Pipelines															  #
+#																					  #	
+#######################################################################################
+
+#backward-compatible pipeliens
+@topcuff:3,20
+@align:1,10
+@align_bwa:2,10
+@recal:1,11,13,10,30,31,32,34
+@snp:1,11,13,10,30,31,32,34,40,42,43,44
+@indel:1,11,13,10,30,31,32,34,40,42,43,44
+@snpindel:1,11,13,10,30,31,32,34,40,42,43,44
+@annot:1,11,13,10,30,31,32,34,40,42,43,44,60,61
+@rnaseq:1,82
+@chipseq:1,83
+
+
+#new pipeliens
+@hc:1,11,13,10,16,30,31,32,10,41,42,43,44
