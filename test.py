@@ -1,4 +1,4 @@
-#!/uufs/chpc.utah.edu/common/home/HCIHiSeqPipeline/tool/python2.7.1/bin/python
+#!/usr/bin/python
 import multiprocessing
 import Queue
 import time
@@ -6,7 +6,7 @@ import os
 import sys
 import imp
 
-class TomatoMain(object):
+class RockfishMain(object):
     def __init__(self):
         self.all_jobs = {}
         self.job_index = 0
@@ -53,8 +53,8 @@ class TomatoMain(object):
                     ps = multiprocessing.Process(target=self.abort,args=(owner,job_name,ji,self.user_jobs))
                     ps.start()
                     #ps.join()
-                    #lastly remove this job on CHPC Master node
-                    #self.util.shell_exec('rm -fr %s' % os.path.join(self.util.CLUSTER_JOB_DIR,str(ji)))
+                    #lastly remove this job on cluster's master node
+                    #self.util.shell_exec('rm -fr %s' % os.path.join(self.util.CLUSTER_MASTER_JOB_DIR,str(ji)))
                         
             except Exception,e:
                 print e
@@ -168,8 +168,6 @@ class TomatoMain(object):
         #abort a running job
         self.job.Job(owner,name,index,0,jobdict).abort()
         
-if __name__=='__main__':
-    TomatoMain().run()
 
 
 class VersionConf2:

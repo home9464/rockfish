@@ -7,7 +7,7 @@ class PipelineBuilder:
     
     def __init__(self,job_source,commmand,version=None):
         self.util = imp.load_source('util','util.py')
-        self.app = imp.load_source('app','app.py')
+        #self.app = imp.load_source('app','app.py')
         self.env = imp.load_source('env','env.py')
 
         #self.metacmds = filter(None, [s.strip() for s in commmand.lstrip('@').split(' ')])
@@ -94,6 +94,7 @@ class PipelineBuilder:
         total_commands = []
         for finput in im.iter_inputs():
             total_commands.extend(AppManager(self.version,pipeline_name,finput,kcmds).get_command())
+        #print total_commands
         return total_commands
         
 

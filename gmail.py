@@ -1,10 +1,18 @@
 import smtplib
+import socket
 from email.MIMEMultipart import MIMEMultipart
 from email.MIMEBase import MIMEBase
 from email.MIMEText import MIMEText
 from email import Encoders
 import os
 import imp
+
+import ntlm.smtp
+from ntlm.smtp import ntlm_authenticate
+
+#sudo apt-get install python-ntlm
+#git clone https://github.com/xulz/python-ntlm.git
+#sudo cp python-ntlm/*  /usr/local/lib/python2.7/dist-packages/ntlm/
 
 class Gmail:
     def __init__(self,to,job_name):
@@ -13,9 +21,11 @@ class Gmail:
         self.util = imp.load_source('util','util.py')
         self.to = to
         self.job_name = job_name
-            
+    
     #def send(self,success=False,body_msg=None,body_file=None,additional_subject=None,attach=None):
+    
     def send(self,subject,body_msg=None,body_file=None,additional_subject=None,attach=None):
+        return
         #subject = "Job %s finished" % self.job_name
         #else:
         #    subject = "Job %s failed" % self.job_name
@@ -55,26 +65,26 @@ class Gmail:
                     msg.attach(part)
                 
                 #for Gmail only
-                mailServer = smtplib.SMTP()
+                mailServer = smtplib.SMTP(self.util.SMTP_SERVER)
+                #mailServer.set_debuglevel(True)
+                mailServer.ehlo()
+                
                 if self.util.SMTP_SERVER_USER=="smtp.gmail.com":
-                    mailServer.connect(self.util.SMTP_SERVER_USER, 587)
-                    mailServer.ehlo()
                     mailServer.starttls()
                     mailServer.ehlo()
+                    mailServer.login(self.util.SMTP_SERVER_USER,self.util.SMTP_SERVER_PASSWORD)
                 else:
-                    mailServer.connect(self.util.SMTP_SERVER)
-                    
-                mailServer.login(self.util.SMTP_SERVER_USER,self.util.SMTP_SERVER_PASSWORD)
+                    ntlm_authenticate(mailServer,r"%s" % self.util.SMTP_SERVER_USER,self.util.SMTP_SERVER_PASSWORD)
                 mailServer.sendmail("BioinformaticsService", recipient, msg.as_string())
                 mailServer.close()
             except Exception,e:
+                #pass
                 print "Failed to send email:",e
 
-def test():        
+def test():
     em = Gmail(['plone3@gmail.com'],'A')
-    em.send(True)
+    em.connect()
+    #em.send(True)
     print 'OK'
-    
-#if __name__=='__main__':
-#    test()
+
     

@@ -29,13 +29,12 @@ class AppManager(object):
          
         self.version = vobj.get_current_version()
         
-        self.datapath = vobj.get_data_path() 
+        self.datapath = vobj.get_data_path()
         
         self.links = vobj.get_pipeline(pipeline_name)
         #print self.links
         if not self.links:
-            raise Exception('Pipeline [%s] was not found in version %s' % (pipeline_name,version))
-        
+            raise Exception('Pipeline [%s] was not found in version %s' % (pipeline_name,self.version))
         
         self.platform = 'illumina'
         if global_params.has_key('-p'):
@@ -187,7 +186,7 @@ class AppManager(object):
 
     def tophat2(self,conf):
         """
-        tophat -p 4 -o 2338_10 /home/hadoop/bio/data/index/hg19/bowtie2/ucsc.hg19 Hi_2338_10_R1.fastq.gz Hi_2338_10_R2.fastq.gz
+        tophat -p 4 -o 2338_10 /bio/data/index/hg19/bowtie2/ucsc.hg19 Hi_2338_10_R1.fastq.gz Hi_2338_10_R2.fastq.gz
         """
         m = self._get_app(conf,'FASTQ')
         app = m[0]
@@ -199,7 +198,8 @@ class AppManager(object):
             pair = self.pair_fastq(p)#i is []
             tmp = []
             #genome_index_file = '%s.nov.%s.nix' % (self.genome,self.platform)
-            genome_index_file = '/rockfish/bio/data/index/hg19/bowtie2/ucsc.hg19'
+            #genome_index_file = '/bio/data/index/hg19/bowtie2/ucsc.hg19'
+            genome_index_file = os.path.join(self.util.CLUSTER_DATA_DIR,'index',self.genome,'bowtie2/ucsc.hg19')
             for i in pair:#i is []
                 cc = None
                 if len(i)==1: #single-end sequence read file
@@ -306,7 +306,8 @@ class AppManager(object):
             tmp = []
             
             #genome_index_file = '%s.bwa.%s' % (self.genome,self.platform)
-            genome_index_file = '/rockfish/data/index/hg19/bwa/ucsc.hg19'
+            #genome_index_file = '/bio/data/index/hg19/bwa/ucsc.hg19'
+            genome_index_file = os.path.join(self.util.CLUSTER_DATA_DIR,'index',self.genome,'bwa/ucsc.hg19')
             
             for i in pair:#i is []
                 cmd_sam = None
@@ -345,12 +346,12 @@ class AppManager(object):
     ########################
     #Picard
     ########################
-    def picard(self,conf,appk,required_inputfiletype,outputfilesuffix='.bam',b_change_product=True):
+    def picard(self,conf,appk,required_inputfiletype,outputfilesuffix='.bam',is_new_product=True):
         """
         """
         m = self._get_app(conf,required_inputfiletype)
-        app = m[0]
-        appn = os.path.basename(app.split(' ')[0])
+        app = m[0] #full path to the appclication  
+        appn = os.path.basename(app.split(' ')[0]) #basename of this application
 
         suffix = None
         if appk:
@@ -384,7 +385,7 @@ class AppManager(object):
                         if appk: #BuildBamIndex
                             self.commands.append('rm -f %s' % fout.rstrip(suffix)+'.ba*')
                         
-                    if b_change_product:
+                    if is_new_product:
                         tmp.append(fout)
                     else:
                         tmp.append(i)
@@ -1079,29 +1080,4 @@ class AppManager(object):
                 tmp.append(findel)
             current.append(tmp)  
         self.products = current
-        
-
-if __name__=='__main__':
-    version = '1'
-    #vobj = VersionConf(ver)
-    #print vobj.get_current_version() 
-    #print vobj.get_app_path() 
-    #links = vobj.get_pipeline('@align -bam')
-    #print links[0]
-    #print links[1]
-
-    #pipeline_name = '@align'
-    #pipeline_name = '@align -bam'
-    pipeline_name = '@snpindel -g hg19'
-    #pipeline_name = '@pair'
-    #pipeline_name = '@snpindel -g hg19 -bwa'
-    genome = 'hg19'
-    platform = 'illumina'
-    inputs=['A_1.txt.gz','A_2.txt.gz']
-    params={}
-    ax = AppManager(version,pipeline_name,inputs,genome,platform,params)
-    print '\n'.join(ax.get_command())
-    #print ax.get_product()
-
-
     

@@ -14,14 +14,15 @@ class PBS(object):
         
         self.env = imp.load_source('env','env.py')
         
-        self.host_master = '%s@%s' % ('hadoop','a0') 
+        self.host_master = '%s@%s' % (self.util.CLUSTER_USER,self.util.CLUSTER_NAME)
+ 
         #name of this job
         self.job_name=job_name #7550
         
-        self.path_master = os.path.join(self.util.CLUSTER_JOB_DIR,path_local)
+        self.path_master = os.path.join(self.util.CLUSTER_MASTER_JOB_DIR,path_local)
         
         #/rockfish/job/ on cluster node
-        self.path_node = os.path.join(self.util.CLUSTER_NODE_DIR,path_local)
+        self.path_node = os.path.join(self.util.CLUSTER_NODE_JOB_DIR,path_local)
         
         self.commands  = commands
         
@@ -33,6 +34,7 @@ class PBS(object):
         self.log_running = False
         
         self.file_current_cmd = os.path.join(self.path_master,'current.txt')
+        
         self.util.shell_exec('touch %s' % self.file_current_cmd)
         #self.file_node = os.path.join(self.path_master,'node.txt')
         #verbose mode        
@@ -107,7 +109,7 @@ class PBS(object):
         #    cmds.append('export PATH=$PATH:%s' % ';'.join(subdirs))
 
         #do not report error if this command fails (sometimes it failed because the file permission) 
-        cmds.append('rm -fr %s/* 2>/dev/null || true' % self.util.CLUSTER_NODE_DIR)
+        cmds.append('rm -fr %s/* 2>/dev/null || true' % self.util.CLUSTER_NODE_JOB_DIR)
         #cmds.append('set -o errtrace')
         
         #make sure all files created in this job can be deleted by other users
@@ -122,11 +124,11 @@ class PBS(object):
         #copy source files from interactive node to cluster node
         cmds.append('scp -r %s:%s/* .' % (self.host_master,self.path_master))
         
-        #cmds.append('cp -ur %s/*  %s/' % (CLUSTER_DATA_DIR,os.path.join(CLUSTER_NODE_DIR,self.path_local)))
+        #cmds.append('cp -ur %s/*  %s/' % (CLUSTER_DATA_DIR,os.path.join(self.util.CLUSTER_NODE_JOB_DIR,self.path_local)))
         
         #only copy required library files
-        for f in self.required_data_files:
-            cmds.append('scp -r %s:%s/%s .' % (self.host_master,self.util.CLUSTER_DATA_DIR,f))
+        #for f in self.required_data_files:
+        #    cmds.append('scp -r %s:%s/%s .' % (self.host_master,self.util.CLUSTER_DATA_DIR,f))
         
 
         return cmds
@@ -139,7 +141,7 @@ class PBS(object):
         if self.required_data_files:
             cmds.append('rm -fr %s' % ' '.join(self.required_data_files))
 
-        #copy (update) result files to chpc interactive node
+        #copy (update) result files from worker node to master node
         cmds.append('rsync -arue ssh %s/* %s:%s/' % (self.path_node,self.host_master,self.path_master))
 
         #delete job folder on cluster node

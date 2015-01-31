@@ -1,18 +1,17 @@
 import os,sys,imp,re
 from sets import Set
 """
-parse the version control file "1.txt"
+parse the pipeline file "N.conf" where N is an integer indicates the pipeline version
 """
 class VersionConf:
     def __init__(self,version=None):
         self.util = imp.load_source('util','util.py')
-        self.conf = {} 
+        self.pipelines = {} 
         self.path_app = []
-        self.PATH_CONF = self.util.CLUSTER_CONF_DIR 
         self.version = version
         if not version:
             self.version = self.get_current_version()
-        self.fn = os.path.join(self.PATH_CONF,'%s.txt' % self.version)
+        self.fn = os.path.join(self.util.CLUSTER_PIPELINE_DIR,'%s.conf' % self.version)
         self._parse()
         
     def _parse(self):
@@ -48,9 +47,9 @@ class VersionConf:
                 if j:
                     for k in j:
                         #print k
-                        #self.conf.setdefault(pipelineName,[]).append((k[0],k[1],k[2],k[5]))
+                        #self.pipelines.setdefault(pipelineName,[]).append((k[0],k[1],k[2],k[5]))
                         
-                        self.conf.setdefault(pipelineName,[]).append((k[0],k[1],k[2],k[3],k[5]))
+                        self.pipelines.setdefault(pipelineName,[]).append((k[0],k[1],k[2],k[3],k[5]))
                         
     def get_current_version(self):
         myversion = None
@@ -59,9 +58,10 @@ class VersionConf:
         
         else: 
             v = []
-            px = re.compile('^(\d+)\.txt')
+            px = re.compile('^(\d+)\.conf')
             py = re.compile('^v(\d+)')
-            for root, dirs, files in os.walk(self.PATH_CONF):
+            
+            for root, dirs, files in os.walk(self.util.CLUSTER_PIPELINE_DIR):
                 for f in files:
                     m = px.findall(f)
                     n = py.findall(f)
@@ -81,7 +81,7 @@ class VersionConf:
     def get_app_path(self):
         ret = []
         for i in self.path_app:
-            j = os.path.join(self.util.LOCAL_SERVER_DIR,self.util.PATH_APP,i)
+            j = os.path.join(self.util.LOCAL_SERVER_APP_DIR,i)
             ret.append(j)
         return list(Set(ret))
     
@@ -90,8 +90,8 @@ class VersionConf:
 
     
     def get_pipeline(self,pipelineName=None):
-        #print self.conf.items()
+        #print self.pipelines.items()
         if pipelineName:
-            return self.conf.get(pipelineName,None)
-        return self.conf
+            return self.pipelines.get(pipelineName,None)
+        return self.pipelines
     

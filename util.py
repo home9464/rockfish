@@ -11,36 +11,41 @@ TEST=False
 #TEST = True
 
 config = ConfigParser.RawConfigParser(allow_no_value=True)
-config.readfp(file('basic.cnf'))
+config.readfp(file('basic.conf'))
 
 CLUSTER_USER = config.get("cluster", "CLUSTER_USER")
 CLUSTER_NAME = config.get("cluster", "CLUSTER_NAME")
-CLUSTER_MASTER_DIR  = config.get("cluster", "CLUSTER_MASTER_DIR")
-CLUSTER_MASTER_TMP_DIR = config.get("cluster", "CLUSTER_MASTER_TMP_DIR")
-CLUSTER_NODE_DIR = config.get("cluster", "CLUSTER_NODE_DIR")
-CLUSTER_NODE_TMP_DIR = config.get("cluster", "CLUSTER_NODE_TMP_DIR")
 CLUSTER_NODE_LIST = config.get("cluster", "CLUSTER_NODE_LIST").split(',')
 
-#can use either the tmp dir on master(larger disk capacity) or node (better performance)
-if CLUSTER_NODE_TMP_DIR:
-    CLUSTER_TMP_DIR = CLUSTER_NODE_TMP_DIR
-elif CLUSTER_MASTER_TMP_DIR:
-    CLUSTER_TMP_DIR = CLUSTER_MASTER_TMP_DIR
-else:
-    CLUSTER_TMP_DIR = '.'
+
+CLUSTER_APP_DIR = config.get("cluster", "CLUSTER_APP_DIR")
+CLUSTER_DATA_DIR = config.get("cluster", "CLUSTER_DATA_DIR")
+CLUSTER_PIPELINE_DIR = config.get("cluster", "CLUSTER_PIPELINE_DIR") 
+
+CLUSTER_MASTER_JOB_DIR = config.get("cluster", "CLUSTER_MASTER_JOB_DIR") 
+CLUSTER_MASTER_LOG_DIR = config.get("cluster", "CLUSTER_MASTER_LOG_DIR") 
+CLUSTER_MASTER_TMP_DIR = config.get("cluster", "CLUSTER_MASTER_TMP_DIR") 
+
+CLUSTER_NODE_JOB_DIR = config.get("cluster", "CLUSTER_NODE_JOB_DIR") 
+CLUSTER_NODE_TMP_DIR = config.get("cluster", "CLUSTER_NODE_TMP_DIR") 
 
 LOCAL_SERVER_USER = config.get("localserver", "LOCAL_SERVER_USER")
 LOCAL_SERVER_NAME = config.get("localserver", "LOCAL_SERVER_NAME")
-LOCAL_SERVER_DIR = config.get("localserver", "LOCAL_SERVER_DIR")
 
-PATH_APP = config.get("path", "PATH_APP")#'app'
-PATH_DATA = config.get("path", "PATH_DATA")#'data'
-PATH_LOG = config.get("path", "PATH_LOG")#'log'
-PATH_JOB = config.get("path", "PATH_JOB")#'job2'
-PATH_CONF = config.get("path", "PATH_CONF")#'conf'
 
-if TEST:
-    PATH_JOB = 'job2'
+#dir is defined as "/path/"
+LOCAL_SERVER_APP_DIR = config.get("localserver", "LOCAL_SERVER_APP_DIR")
+LOCAL_SERVER_DATA_DIR = config.get("localserver", "LOCAL_SERVER_DATA_DIR")
+LOCAL_SERVER_JOB_DIR = config.get("localserver", "LOCAL_SERVER_JOB_DIR")
+LOCAL_SERVER_PIPELINE_DIR = config.get("localserver", "LOCAL_SERVER_PIPELINE_DIR")
+
+
+#path is defined as "user@host:/path/"
+LOCAL_SERVER_PATH = LOCAL_SERVER_USER+'@'+LOCAL_SERVER_NAME+':'
+LOCAL_SERVER_APP_PATH  = LOCAL_SERVER_PATH + LOCAL_SERVER_APP_DIR
+LOCAL_SERVER_DATA_PATH = LOCAL_SERVER_PATH + LOCAL_SERVER_DATA_DIR
+LOCAL_SERVER_JOB_PATH  = LOCAL_SERVER_PATH + LOCAL_SERVER_JOB_DIR 
+LOCAL_SERVER_PIPELINE_PATH  = LOCAL_SERVER_PATH + LOCAL_SERVER_PIPELINE_DIR 
      
 #rsync parameters
 RSYNC_QUERY_PARAMS      = '-Lre ssh'
@@ -92,26 +97,8 @@ RE_PAIRED_END_READ_FILE_1 = config.get("misc", "RE_PAIRED_END_READ_FILE_1")#'(.*
 RE_PAIRED_END_READ_FILE_2 = config.get("misc", "RE_PAIRED_END_READ_FILE_2")#'(.*)_2\.(.+)'
 
 ##################################################
-CLUSTER_APP_DIR = os.path.join(CLUSTER_MASTER_DIR,PATH_APP)
-CLUSTER_JOB_DIR = os.path.join(CLUSTER_MASTER_DIR,PATH_JOB)
-CLUSTER_LOG_DIR = os.path.join(CLUSTER_MASTER_DIR,PATH_LOG)
-CLUSTER_DATA_DIR = os.path.join(CLUSTER_MASTER_DIR,PATH_DATA)
-CLUSTER_CONF_DIR = os.path.join(CLUSTER_MASTER_DIR,PATH_CONF)
 
 ##################################################
-LOCAL_SERVER_PATH = LOCAL_SERVER_USER+'@'+LOCAL_SERVER_NAME+':'
-
-LOCAL_SERVER_APP_PATH  = LOCAL_SERVER_PATH+os.path.join(LOCAL_SERVER_DIR,PATH_APP)
-LOCAL_SERVER_DATA_PATH = LOCAL_SERVER_PATH+os.path.join(LOCAL_SERVER_DIR,PATH_DATA)
-LOCAL_SERVER_JOB_PATH  = LOCAL_SERVER_PATH+os.path.join(LOCAL_SERVER_DIR,PATH_JOB)
-LOCAL_SERVER_CONF_PATH  = LOCAL_SERVER_PATH+os.path.join(LOCAL_SERVER_DIR,PATH_CONF)
-
-
-
-LOCAL_SERVER_APP_DIR  = os.path.join(LOCAL_SERVER_DIR,PATH_APP)
-LOCAL_SERVER_DATA_DIR = os.path.join(LOCAL_SERVER_DIR,PATH_DATA)
-LOCAL_SERVER_JOB_DIR  = os.path.join(LOCAL_SERVER_DIR,PATH_JOB)
-LOCAL_SERVER_CONF_DIR  = os.path.join(LOCAL_SERVER_DIR,PATH_CONF)
 
 ##################################################
 UserPriority = {'hadoop':(0,1024,240)} #Admin. Priority(lower is higher), Max_Jobs, Max_Wallhours}
@@ -171,7 +158,6 @@ def shell_exec(cmd,shell=True):
     """cmd is a string!"""
     #ALL outputs will be redirected to stdout
     #do not use "time command" to wrap any commands. It is going to disrupt.
-    #print cmd
     p = subprocess.Popen(cmd,stdout=subprocess.PIPE,stderr=subprocess.STDOUT,shell=shell)
     std_out,std_err = p.communicate()
     if std_out:
@@ -181,12 +167,10 @@ def shell_exec(cmd,shell=True):
 
 def shell_exec_remote(cmd,job_name='.',shell=True):
     """execute a command on a remote machine using ssh
-    ssh ying@111.111.111.111
-    cd PATH_JOB/job_name
+    ssh ying@111.111.111.111; cd /LOCAL_SERVER_JOB_PATH/job_name
     run cmd
     """
     command = """ssh %s@%s 'cd %s; %s'""" % (LOCAL_SERVER_USER,LOCAL_SERVER_NAME,os.path.join(LOCAL_SERVER_JOB_DIR,job_name),cmd)
-    #print command
     return shell_exec(command)
 
 def now():
@@ -219,37 +203,34 @@ def make_directories():
     if not os.path.exists(CLUSTER_APP_DIR):
         shell_exec('mkdir -p %s' % CLUSTER_APP_DIR)
 
-    if not os.path.exists(CLUSTER_JOB_DIR):
-        shell_exec('mkdir -p %s' % CLUSTER_JOB_DIR)
-
-    if not os.path.exists(CLUSTER_LOG_DIR):
-        shell_exec('mkdir -p %s' % CLUSTER_LOG_DIR)
-
-    if not os.path.exists(CLUSTER_CONF_DIR):
-        shell_exec('mkdir -p %s' % CLUSTER_CONF_DIR)
-        
     if not os.path.exists(CLUSTER_DATA_DIR):
         shell_exec('mkdir -p %s' % CLUSTER_DATA_DIR)
+        
+    if not os.path.exists(CLUSTER_MASTER_JOB_DIR):
+        shell_exec('mkdir -p %s' % CLUSTER_MASTER_JOB_DIR)
 
-    if not os.path.exists(CLUSTER_TMP_DIR):
-        shell_exec('mkdir -p %s' % CLUSTER_TMP_DIR)
+    if not os.path.exists(CLUSTER_MASTER_LOG_DIR):
+        shell_exec('mkdir -p %s' % CLUSTER_MASTER_LOG_DIR)
+
+    if not os.path.exists(CLUSTER_PIPELINE_DIR):
+        shell_exec('mkdir -p %s' % CLUSTER_PIPELINE_DIR)
+        
+    if not os.path.exists(CLUSTER_MASTER_TMP_DIR):
+        shell_exec('mkdir -p %s' % CLUSTER_MASTER_TMP_DIR)
 
 def clean_job_directory():
-    if os.path.exists(CLUSTER_JOB_DIR):
-        shell_exec('rm -fr %s/*' % CLUSTER_JOB_DIR)
+    if os.path.exists(CLUSTER_MASTER_JOB_DIR):
+        shell_exec('rm -fr %s/*' % CLUSTER_MASTER_JOB_DIR)
 
 def make_remote_directory(path):
-    """create a directory on HCI-BIO2"""
-    #ret = int(shell_exec("ssh %s@%s 'mkdir -p %s';echo $?" % (LOCAL_SERVER_USER,LOCAL_SERVER_NAME,JOB_HCI,path)))
-    #if ret: #error
-    #    pass
+    """create a directory on local server"""
     cmd = "ssh %s@%s 'mkdir -p %s'" % (LOCAL_SERVER_USER,LOCAL_SERVER_NAME,path)
     ret = shell_exec(cmd)
     if ret: #error:
         raise Exception('Failed to create directory %s: %s' % (path,ret)) 
 
 def test_writeable_directory(path):
-    #The output folder on HCI-BIO2 must be writable for user "hiseq"."""
+    #The job's output folder on local server must be writable"""
     cmd_create_tmp_file = """if [ `touch testfile 2> /dev/null; echo "$?"` -eq 0 ]; then
         echo 0
         rm testfile
@@ -272,10 +253,10 @@ def rsync(param,source,dest):
     
 def sync_query():
     """
-    how to speed up this process?
+    query remote client machines for pending jobs
     """
     
-    #query pending jobs on HCI
+    #query pending jobs
     cmd = """rsync %s %s | awk '{print $1 "?" $3"#"$4 "?" $5}'""" % (RSYNC_QUERY_PARAMS,LOCAL_SERVER_JOB_PATH+os.sep)
     
     #Link of folder may not work
@@ -339,13 +320,16 @@ def sync_query():
     #else:
     #    return begin_jobs,abort_jobs
 
+def create_parallel_job(job_path):
+    pass
+
 
 def sync_get_job(path_remote,path_local,files=[]):
-    #download all input files for one job from HCI
+    #download all input files for one job
     #@path_remote: A/B/C
     #@files: ['1.txt','2.txt']
     #@local_path: A_123345
-    dest = os.path.join(CLUSTER_JOB_DIR,path_local) + os.sep
+    dest = os.path.join(CLUSTER_MASTER_JOB_DIR,path_local) + os.sep
     msg = []
     if files: #download specified files only
         for f in files:
@@ -383,43 +367,41 @@ def sync_get_job(path_remote,path_local,files=[]):
         
 
 def sync_get_cmd(path_remote,path_local):
-    #download the "cmd.txt" file for job preprocesing from HCI.
+    #download the "cmd.txt" file for job preprocesing.
     source = os.path.join(LOCAL_SERVER_JOB_PATH,path_remote,FILE_CMD)
-    dest = os.path.join(CLUSTER_JOB_DIR,path_local)+os.sep
+    dest = os.path.join(CLUSTER_MASTER_JOB_DIR,path_local)+os.sep
     rsync(RYSNC_DOWNLOAD_PARAMS, source, dest)
 
-def sync_put_result(from_chpc,to_hci):
-    #upload result back to HCI
-    return rsync(RYSNC_UPLOAD_PARAMS, from_chpc,to_hci)
+def sync_put_result(from_cluster,to_local_server):
+    #upload result
+    return rsync(RYSNC_UPLOAD_PARAMS, from_cluster,to_local_server)
 
 def sync_workers():
-    source = CLUSTER_APP_DIR + os.sep
-    dest = os.path.join(os.path.dirname(CLUSTER_NODE_DIR),PATH_APP)+os.sep
     for d in CLUSTER_NODE_LIST:
+        source = CLUSTER_APP_DIR + os.sep
+        dest = '%s:%s/' % (d,CLUSTER_APP_DIR)
         rsync(RYSNC_UPLOAD_PARAMS,source,dest)
         
-    source = CLUSTER_DATA_DIR + os.sep
-    dest = os.path.join(os.path.dirname(CLUSTER_NODE_DIR),PATH_DATA)+os.sep
-    for d in CLUSTER_NODE_LIST:
+        source = CLUSTER_DATA_DIR + os.sep
+        dest = '%s:%s/' % (d,CLUSTER_DATA_DIR)
         rsync(RYSNC_UPLOAD_PARAMS,source,dest)
 
-
 def sync_get_app():
-    #update APP at CHPC from APP at HCI
+    #update /bio/app
     source = LOCAL_SERVER_APP_PATH+os.sep
     dest = CLUSTER_APP_DIR+os.sep
     return rsync(RYSNC_UPLOAD_PARAMS,source,dest)
     
 def sync_get_data():
-    #update DATA at CHPC from DATA at HCI
+    #update /bio/data
     source = LOCAL_SERVER_DATA_PATH+os.sep
     dest = CLUSTER_DATA_DIR+os.sep
     return rsync(RYSNC_UPLOAD_PARAMS, source,dest)
 
-def sync_get_conf():
-    #update DATA at CHPC from DATA at HCI
-    source = LOCAL_SERVER_CONF_PATH+os.sep
-    dest = CLUSTER_CONF_DIR+os.sep
+def sync_get_pipeline():
+    #update /bio/conf
+    source = LOCAL_SERVER_PIPELINE_PATH + os.sep
+    dest = CLUSTER_PIPELINE_DIR+os.sep
     return rsync(RYSNC_UPLOAD_PARAMS, source,dest)
 
 def update_cmd_params(cmd,reserved,new_params,first_param_index=0):
@@ -588,16 +570,7 @@ def get_next_jobdir(basename,basepath='.'):
     else:
         job_folder_index = 1
     return basename+str(job_folder_index)
-    #make new job dir
-    #myfolder = os.path.join(PATH_JOB,uname,str(job_folder_index))
-    #if not os.path.exists(myfolder):
-    #    shell_exec('mkdir -p %s' % myfolder)
-    #else:
-    #    shell_exec('rm -fr %s/*' % myfolder)
 
-#def make_command(versionNumber,pipelineName):
-#print get_version('v1','@snpindel -g hg19')
-        
 """
 def get_free_nodes():
     free_nodes=0

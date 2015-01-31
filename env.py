@@ -57,7 +57,6 @@ class AppLocator(object):
 class AppRuntimeMapper(object):
     def __init__(self):
         self.util = imp.load_source('util','util.py')
-        #self.ext_to_app ={'pl':'perl','py':'python','jar':'java -Xmx22g -jar -Djava.io.tmpdir=%s' % self.util.CLUSTER_TMP_DIR,'sh':'bash','bash':'bash'}
         self.ext_to_app ={'pl':'perl','py':'python','jar':'java -Xmx14g -jar','sh':'bash','bash':'bash'}
         
     def map(self,command):
