@@ -101,9 +101,9 @@ RE_PAIRED_END_READ_FILE_2 = config.get("misc", "RE_PAIRED_END_READ_FILE_2")#'(.*
 ##################################################
 
 ##################################################
-UserPriority = {'hadoop':(0,1024,240)} #Admin. Priority(lower is higher), Max_Jobs, Max_Wallhours}
+UserPriority = {'bioservice':(0,1024,240)} #Admin. Priority(lower is higher), Max_Jobs, Max_Wallhours}
 
-UserPriorityDefault = (9,3,240)
+UserPriorityDefault = (0,1024,240)
 
 CLUSTER_R_PATH = '/bin/R/lib64/R/bin/R'
 
@@ -112,6 +112,9 @@ RANK_EXIST = re.compile('(^R\d+):\sempty')
 ##################################################
 
 def get_user_priority(user_name):
+    """
+    @return: (job_priority,max_parallel_jobs,max_wallhours_per_job) 
+    """
     ps = UserPriority.get(user_name,None)
     if ps:
         p,n,h = ps
@@ -124,7 +127,10 @@ def get_user_priority(user_name):
         return p,n,h
 
 def extract_email_from_cmd(job_name):
-    c = 'cat cmd.txt | grep -E -o \"\\b[a-zA-Z0-9.-_]+@[a-zA-Z0-9.-]+\.[a-zA-Z0-9.-]+\\b\"'
+    """
+    @return: user@company.com or None
+    """
+    c = 'cat %s | grep -E -o \"\\b[a-zA-Z0-9.-_]+@[a-zA-Z0-9.-]+\.[a-zA-Z0-9.-]+\\b\"' % FILE_CMD
     ret = shell_exec_remote(c,job_name)
     if ret:
         return ret[0]
@@ -133,6 +139,9 @@ def extract_email_from_cmd(job_name):
 
 
 def accept_pending_job(job_name,job_rank):
+    """
+    @return: 
+    """
     #1. remove the b
     
     #2. make a new rank or change existing rank
@@ -155,7 +164,11 @@ def accept_pending_job(job_name,job_rank):
         ret = shell_exec_remote(c3,job_name)
 
 def shell_exec(cmd,shell=True):
-    """cmd is a string!"""
+    """cmd is a string!
+    
+    @cmd: a string represent the command like "ls -al *"
+    @return: The [standard output] of your command ( [] if the cmd does not have standard output)
+    """
     #ALL outputs will be redirected to stdout
     #do not use "time command" to wrap any commands. It is going to disrupt.
     p = subprocess.Popen(cmd,stdout=subprocess.PIPE,stderr=subprocess.STDOUT,shell=shell)
@@ -179,18 +192,13 @@ def now():
     """
     return time.strftime("%A, %b/%d/%Y, %H:%M:%S", time.localtime())
 
-
-
-##start: use by GNomEx
 def get_job_owner(job_name):
-    return 'hadoop'
-
-    #cmd = """ssh %s@%s 'stat -c %%U %s'""" % (LOCAL_SERVER_USER,LOCAL_SERVER_NAME,os.path.join(LOCAL_SERVER_JOB_DIR,job_name))
-    #msg = shell_exec(cmd)
-    #if msg:
-    #    return msg[0]
-    #else:
-    #    return None
+    cmd = """ssh %s@%s 'stat -c %%U %s'""" % (LOCAL_SERVER_USER,LOCAL_SERVER_NAME,os.path.join(LOCAL_SERVER_JOB_DIR,job_name))
+    msg = shell_exec(cmd)
+    if msg:
+        return msg[0]
+    else:
+        return "anonymous"
 
 def get_job_priority(job_owner):
     return PRIORITY_USER.get(job_owner,100)
@@ -257,7 +265,7 @@ def sync_query():
     """
     
     #query pending jobs
-    cmd = """rsync %s %s | awk '{print $1 "?" $3"#"$4 "?" $5}'""" % (RSYNC_QUERY_PARAMS,LOCAL_SERVER_JOB_PATH+os.sep)
+    cmd = """rsync %s %s | awk '{print $1 "?" $3"#"$4 "?" $5}'""" % (RSYNC_QUERY_PARAMS,LOCAL_SERVER_JOB_PATH + os.sep)
     
     #Link of folder may not work
     #readlink -f FILE

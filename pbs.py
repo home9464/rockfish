@@ -180,10 +180,10 @@ trap 'failclean' ERR TERM""" % (self.path_node,self.host_master,self.path_master
 
         pbs_command = []
         pbs_command.append('#!/bin/bash')
-        pbs_command.append('#PBS -l nodes=1:ppn=4,walltime=%s' % self.estimate_walltime())
+        pbs_command.append('#PBS -l nodes=1:ppn=4,pmem=16gb,walltime=%s' % self.estimate_walltime())
         pbs_command.append('#PBS -N %s' % self.job_name)
-        pbs_command.append('#PBS -o %s' % os.path.join(self.path_master,'stdout.txt'))
-        pbs_command.append('#PBS -e %s' % os.path.join(self.path_master,'stderr.txt'))
+        pbs_command.append('#PBS -o %s' % os.path.join(self.path_master,self.util.FILE_STDOUT))
+        pbs_command.append('#PBS -e %s' % os.path.join(self.path_master,self.util.FILE_STDERR))
         #pbs_command.append('#PBS -p %d' % self.job_priority)
         
         pbs_command.append(fail_clean)

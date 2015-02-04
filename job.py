@@ -27,11 +27,6 @@ class Job:
         self.path_local = str(job_index)
         self.user_email = None
         self.description = []
-        self.user_lab=None
-        self.genome_build = 'Unknown'
-        self.gnomex_analysis_dir = None
-        self.gnomex_analysis_type = None
-        self.gnomex_analysis_id = None
         
         #self.wall_time = self.util.MAX_WALLTIME_HOURS
         self.job_owner=job_owner
@@ -150,13 +145,6 @@ class Job:
                         if cx.startswith('@'):
                             #command = filter(None, [s.strip() for s in cx.lstrip('@').split(' ')])
                             command = filter(None, [s.strip() for s in cx.split(' ')])
-                            if self.user_lab:
-                                for i in range(0,len(command)-1):
-                                    if command[i] == '-g':
-                                        self.genome_build = self.util.get_genomebuild(command[i+1])
-                            #meta_command = command[0]
-                            self.gnomex_analysis_type = 'Alignment'
-                            #total_commands.extend(self.pipelinebuilder.PipelineBuilder(self.path_input,command,self.version).get_commands())
                             total_commands.append(' '.join(command))
                         else:
                             total_commands.append(cx)
@@ -172,10 +160,10 @@ class Job:
                 mapped_commands.append(self.env.AppLocator(vconf.get_app_path()).locate(c))
         self.version = vconf.get_current_version()
         
-        if not self.user_email:
+        if not self.user_email: #throw an error if user does not supply a email address?
             pass
             #err = 'Error: email address was not found. Please use #e MY_EMAIL'
-            #self.util.shell_exec_remote('echo "%s" > log.txt' % err,job_name=self.job_name,shell=True)
+            #self.util.shell_exec_remote('echo "%s" > %s' % (err,self.util.FILE_LOG),job_name=self.job_name,shell=True)
             #raise Exception('No Email address provided')
         
         if self.path_output:
@@ -186,7 +174,8 @@ class Job:
         return mapped_commands
     
     def start(self):
-        print '[%s] <<<<< %s (%d,%s)' % (self.util.now(),self.job_name,self.wall_time,str(self.job_dict[self.job_owner]))
+        #print '[%s] <<<<< %s (%d,%s)' % (self.util.now(),self.job_name,self.wall_time,str(self.job_dict[self.job_owner]))
+        print '[%s] <<<<< %s' % (self.util.now(),self.job_name)
 
         DRY_RUN =False
         #self.util.shell_exec_remote('[ -f %s ] && echo "1" || echo "0"' % self.util.FILE_TAG_RUNNING,self.path_input)
@@ -216,10 +205,9 @@ class Job:
                 self.user_email.send(subject = 'Dry run of Job %s completed' % self.job_name, body_msg='\n'.join(commands), body_file = None,additional_subject=None)
                 sys.exit(0)
                 
-            if not self.user_lab and not self.gnomex_analysis_id:
-                if self.user_email:
-                    if 'a' in self.how_to_send_email or 'b' in self.how_to_send_email:
-                        self.user_email.send(subject = 'Job %s accepted with %d hours of wall time' % (self.job_name,self.wall_time))
+            if self.user_email:
+                if 'a' in self.how_to_send_email or 'b' in self.how_to_send_email:
+                    self.user_email.send(subject = 'Job %s accepted with %d hours of wall time' % (self.job_name,self.wall_time))
             
             self.log_status('Begin at %s' % time.strftime("%A, %b/%d/%Y, %H:%M:%S", time.localtime()))
             
@@ -259,14 +247,16 @@ class Job:
             
             #delete all input files
             for f in files_transfered:
-                if not f=='log.txt': 
+                if not f==self.util.FILE_LOG: 
                     self.util.shell_exec('rm -f %s' % os.path.join(self.util.CLUSTER_MASTER_JOB_DIR,self.path_local,f))
 
-            #bug: log.txt was truncated from above?
             self.log_status('Upload result files')
 
-            #print 'chmod -R 664 %s' % os.path.join(self.util.CLUSTER_MASTER_JOB_DIR,self.path_local)
-            self.util.shell_exec('chmod -R 775 %s' % os.path.join(self.util.CLUSTER_MASTER_JOB_DIR,self.path_local))
+            #self.util.shell_exec('chmod -R 764 %s' % os.path.join(self.util.CLUSTER_MASTER_JOB_DIR,self.path_local))
+            
+            file_stdout = os.path.join(self.util.CLUSTER_MASTER_JOB_DIR,self.path_local,self.util.FILE_STDOUT)
+            file_stderr = os.path.join(self.util.CLUSTER_MASTER_JOB_DIR,self.path_local,self.util.FILE_STDERR)
+            self.util.shell_exec('chmod -R 764 %s %s' % (file_stdout,file_stderr))
             
             self.util.sync_put_result(os.path.join(self.util.CLUSTER_MASTER_JOB_DIR,self.path_local)+os.sep,self.path_output)
             
@@ -283,17 +273,6 @@ class Job:
                     analysis_url = None
                     add_subject = None
                     
-                    if self.gnomex_analysis_id:
-                        analysis_url = self.util.URL_GNOMEX_ANALYSIS % self.gnomex_analysis_id
-                        
-                    elif self.user_lab:
-                        add_subject = 'Analysis %s is created at GNomEx' % self.gnomex_analysis_dir
-                        analysis_name =  os.path.basename(self.path_output.split(':')[-1].rstrip('/'))
-                        analysis_url = self.util.URL_GNOMEX_ANALYSIS % analysis_name
-
-                    else:
-                        pass
-
                     if 'a' in self.how_to_send_email or 'c' in self.how_to_send_email: #All or Complete
                         self.user_email.send(subject = 'Job %s completed' % self.job_name, body_msg=analysis_url, body_file = os.path.join(self.util.CLUSTER_MASTER_JOB_DIR,self.path_local,self.util.FILE_LOG),additional_subject=add_subject)
                     
@@ -302,9 +281,6 @@ class Job:
                     if 'a' in self.how_to_send_email or 'f' in self.how_to_send_email:
                         self.user_email.send(subject = 'Job %s failed' % self.job_name, body_file = os.path.join(self.util.CLUSTER_MASTER_JOB_DIR,self.path_local,self.util.FILE_STDERR))
                         
-            #delete the RUNNING tag
-            #self.util.shell_exec_remote('rm -f %s' % self.util.FILE_TAG_RUNNING,self.path_input)
-                    
         except Exception,e:
             
             #delete the RUNNING tag
@@ -321,25 +297,36 @@ class Job:
                         self.user_email.send(subject = 'Job %s failed' % self.job_name, body_msg=str(e))
                     
         finally:
-            #delete job folder on cluster
-            self.util.shell_exec_remote('rm -f %s' % self.util.FILE_TAG_RUNNING,self.path_input)
-            self.clean_job_dict()
-            
-            #delete job folder on Master
-            self.util.shell_exec('rm -fr %s' % os.path.join(self.util.CLUSTER_MASTER_JOB_DIR,self.path_local))
-            
-            print '[%s] >>>>> %s (%s)' % (self.util.now(),self.path_input,str(self.job_dict[self.job_owner]))
-            
+            self.after()
+            #print '[%s] >>>>> %s (%s)' % (self.util.now(),self.path_input,str(self.job_dict[self.job_owner]))
+            print '[%s] >>>>> %s' % (self.util.now(),self.path_input)
             return successful
         
-            #backup&log this job's cmd.txt,stdout.txt and log.txt
-            #tm = time.strftime("%Y_%b_%d_%H_%M_%S", time.gmtime())
-            
-            #copy the log files?
-            #shell_exec('cp -f %s %s' % (os.path.join(CLUSTER_MASTER_JOB_DIR,self.path_local,FILE_ERROR),os.path.join(CLUSTER_MASTER_LOG_DIR,self.path_local+'_'+tm+'_'+FILE_ERROR)))
-            #shell_exec('cp -f %s %s' % (os.path.join(CLUSTER_MASTER_JOB_DIR,self.path_local,FILE_STDOUT),os.path.join(CLUSTER_MASTER_LOG_DIR,self.path_local+'_'+tm+'_'+FILE_STDOUT)))
-            #shell_exec('cp -f %s %s' % (os.path.join(CLUSTER_MASTER_JOB_DIR,self.path_local,FILE_LOG),os.path.join(CLUSTER_MASTER_LOG_DIR,self.path_local+'_'+tm+'_'+FILE_LOG)))
-            #shell_exec('cp -f %s %s' % (os.path.join(CLUSTER_MASTER_JOB_DIR,self.path_local,FILE_CMD),os.path.join(CLUSTER_MASTER_LOG_DIR,self.path_local+'_'+tm+'_'+FILE_CMD)))
+    def after(self):
+        """
+        executed after the job is finished
+        """
+        #delete running tag file
+        try: 
+            self.util.shell_exec_remote('rm -f %s' % self.util.FILE_TAG_RUNNING,self.path_input)
+            self.clean_job_dict()
+            self.backup()
+            #delete job folder on Master
+            #self.util.shell_exec('rm -fr %s' % os.path.join(self.util.CLUSTER_MASTER_JOB_DIR,self.path_local))
+        except:
+            pass
+    
+    def backup(self):
+        """
+        backup&log this job's cmd, stdout and log
+        """
+        #tm = time.strftime("%Y_%b_%d_%H_%M_%S", time.gmtime())
+        tm = time.strftime("%b_%d_%Y", time.gmtime()) #"Feb_01_2015"
+        src_dir = os.path.join(self.util.CLUSTER_MASTER_JOB_DIR,self.path_local)
+        dest_dir = os.path.join(self.util.CLUSTER_MASTER_LOG_DIR,self.job_owner,tm,self.path_local)
+        self.util.shell_exec('mkdir -p %s' % dest_dir)
+        for f in (self.util.FILE_STDERR,self.util.FILE_STDOUT,self.util.FILE_LOG,self.util.FILE_CMD):
+            self.util.shell_exec('cp -f %s %s' % (os.path.join(src_dir,f),os.path.join(dest_dir,f)))
         
     def abort(self):
         """User terminated the job"""

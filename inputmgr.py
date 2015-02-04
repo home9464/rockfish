@@ -12,7 +12,7 @@ class InputManager(object):
         if case_control:
             #print case_control_group
             self._pair(case_control) 
-        self.reserved_files = ['cmd.txt','stdout.txt','stderr.txt','log.txt']
+        self.reserved_files = [self.util.FILE_CMD,self.util.FILE_STDOUT,self.util.FILE_STDERR,self.util.FILE_LOG]
 
     #def _get_path(self,file_name):
     #    #cmd = 
