@@ -47,9 +47,20 @@ LOCAL_SERVER_DATA_PATH = LOCAL_SERVER_PATH + LOCAL_SERVER_DATA_DIR
 LOCAL_SERVER_JOB_PATH  = LOCAL_SERVER_PATH + LOCAL_SERVER_JOB_DIR 
 LOCAL_SERVER_PIPELINE_PATH  = LOCAL_SERVER_PATH + LOCAL_SERVER_PIPELINE_DIR 
      
+
+FILE_CMD           = config.get("file", "FILE_CMD")#'cmd.txt' #commands of each job
+FILE_STDOUT        = config.get("file", "FILE_STDOUT")#'stdout.txt' #standard output and error of each job
+FILE_STDERR        = config.get("file", "FILE_STDERR")#'stderr.txt' #standard output and error of each job
+FILE_LOG           = config.get("file", "FILE_LOG")#'log.txt' #log information of each job
+FILE_TAG_ABORT     = config.get("file", "FILE_TAG_ABORT")#'a' #empty file as "abort a job" place holder
+FILE_TAG_BEGIN     = config.get("file", "FILE_TAG_BEGIN")#'b' #empty file as "begin a job" place holder
+FILE_TAG_RUNNING   = config.get("file", "FILE_TAG_RUNNING")#'r' #empty file as "running a job" place holder
+FILE_TAG_DRYRUN   = config.get("file", "FILE_TAG_DRYRUN")#'d' #empty file as "dry-run a job" place holder
+
 #rsync parameters
 RSYNC_QUERY_PARAMS      = '-Lre ssh'
 RYSNC_DOWNLOAD_PARAMS   = '-Lriue ssh' #L-Softlink, a-Archive, i-  
+RYSNC_GET_JOB_PARAMS    = '-Lriue ssh --exclude %s --exclude %s --exclude %s' % (FILE_STDOUT,FILE_STDERR,FILE_LOG)
 RYSNC_UPLOAD_PARAMS     = '-Lrue ssh'
 RYSNC_UPDATE_PARAMS     = '--append -re ssh'#update-only, transfer-over-ssh
 
@@ -60,14 +71,6 @@ RYSNC_UPDATE_PARAMS     = '--append -re ssh'#update-only, transfer-over-ssh
 
 RSYNC_QUERY_INTERVAL    = int(config.get("rsync", "RSYNC_QUERY_INTERVAL_SECONDS"))#10 #seconds, query remote data server for new data
 
-FILE_CMD           = config.get("file", "FILE_CMD")#'cmd.txt' #commands of each job
-FILE_STDOUT        = config.get("file", "FILE_STDOUT")#'stdout.txt' #standard output and error of each job
-FILE_STDERR        = config.get("file", "FILE_STDERR")#'stderr.txt' #standard output and error of each job
-FILE_LOG           = config.get("file", "FILE_LOG")#'log.txt' #log information of each job
-FILE_TAG_ABORT     = config.get("file", "FILE_TAG_ABORT")#'a' #empty file as "abort a job" place holder
-FILE_TAG_BEGIN     = config.get("file", "FILE_TAG_BEGIN")#'b' #empty file as "begin a job" place holder
-FILE_TAG_RUNNING   = config.get("file", "FILE_TAG_RUNNING")#'r' #empty file as "running a job" place holder
-FILE_TAG_DRYRUN   = config.get("file", "FILE_TAG_DRYRUN")#'d' #empty file as "dry-run a job" place holder
 
 PBS_QUERY_INTERVAL = int(config.get("pbs", "PBS_QUERY_INTERVAL_SECONDS"))#10 #seconds. Query if a job was completed in this interval.
 MAX_WALLTIME_HOURS = int(config.get("pbs", "MAX_WALLTIME_HOURS"))#240 #hours
@@ -193,7 +196,7 @@ def now():
     return time.strftime("%A, %b/%d/%Y, %H:%M:%S", time.localtime())
 
 def get_job_owner(job_name):
-    cmd = """ssh %s@%s 'stat -c %%U %s'""" % (LOCAL_SERVER_USER,LOCAL_SERVER_NAME,os.path.join(LOCAL_SERVER_JOB_DIR,job_name))
+    cmd = "ssh %s@%s 'stat -c %%U %s'" % (LOCAL_SERVER_USER,LOCAL_SERVER_NAME,os.path.join(LOCAL_SERVER_JOB_DIR,job_name))
     msg = shell_exec(cmd)
     if msg:
         return msg[0]
@@ -257,6 +260,7 @@ def test_writeable_directory(path):
 
 
 def rsync(param,source,dest):
+    #print 'rsync %s %s %s' % (param,source,dest)
     return shell_exec('rsync %s %s %s' % (param,source,dest))
     
 def sync_query():
@@ -376,15 +380,21 @@ def sync_get_job(path_remote,path_local,files=[]):
 
 def sync_get_cmd(path_remote,path_local):
     #download the "cmd.txt" file for job preprocesing.
+    """get the cmd file from Client to Master
+    """
     source = os.path.join(LOCAL_SERVER_JOB_PATH,path_remote,FILE_CMD)
     dest = os.path.join(CLUSTER_MASTER_JOB_DIR,path_local)+os.sep
     rsync(RYSNC_DOWNLOAD_PARAMS, source, dest)
 
 def sync_put_result(from_cluster,to_local_server):
     #upload result
+    """synchronize from Master to Client
+    """
     return rsync(RYSNC_UPLOAD_PARAMS, from_cluster,to_local_server)
 
 def sync_workers():
+    """synchronize from Master to Workers
+    """
     for d in CLUSTER_NODE_LIST:
         source = CLUSTER_APP_DIR + os.sep
         dest = '%s:%s/' % (d,CLUSTER_APP_DIR)
@@ -392,6 +402,10 @@ def sync_workers():
         
         source = CLUSTER_DATA_DIR + os.sep
         dest = '%s:%s/' % (d,CLUSTER_DATA_DIR)
+        rsync(RYSNC_UPLOAD_PARAMS,source,dest)
+
+        source = CLUSTER_PIPELINE_DIR + os.sep
+        dest = '%s:%s/' % (d,CLUSTER_PIPELINE_DIR)
         rsync(RYSNC_UPLOAD_PARAMS,source,dest)
 
 def sync_get_app():

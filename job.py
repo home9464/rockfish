@@ -149,16 +149,19 @@ class Job:
                         else:
                             total_commands.append(cx)
                             
-        vconf = VersionConf(self.version)
+        #vconf = VersionConf(self.version)
         
         mapped_commands = []
         for c in total_commands:
             if c.startswith('@'):
-                mapped_commands.extend(self.pipelinebuilder.PipelineBuilder(self.path_input,c,self.version).get_commands())
+                pass
+                #mapped_commands.extend(self.pipelinebuilder.PipelineBuilder(self.path_input,c,self.version).get_commands())
             else:
+                mapped_commands.append(c)
                 #print '#',self.env.Environment(vconf.get_app_path()).map_command(c)
-                mapped_commands.append(self.env.AppLocator(vconf.get_app_path()).locate(c))
-        self.version = vconf.get_current_version()
+                #mapped_commands.append(self.env.AppLocator(vconf.get_app_path()).locate(c))
+        #self.version = vconf.get_current_version()
+        self.version = '1'
         
         if not self.user_email: #throw an error if user does not supply a email address?
             pass
@@ -209,9 +212,11 @@ class Job:
                 if 'a' in self.how_to_send_email or 'b' in self.how_to_send_email:
                     self.user_email.send(subject = 'Job %s accepted with %d hours of wall time' % (self.job_name,self.wall_time))
             
+            self.log_status('%s' % os.path.join(self.util.LOCAL_SERVER_JOB_PATH,self.path_input))
+            
             self.log_status('Begin at %s' % time.strftime("%A, %b/%d/%Y, %H:%M:%S", time.localtime()))
             
-            self.log_status('Pipeline Version: %s' % self.version)
+            #self.log_status('Pipeline Version: %s' % self.version)
             
             self.log_status('Initialize environments')
             
@@ -290,7 +295,7 @@ class Job:
             else:
                 import traceback
                 traceback.print_tb(sys.exc_info()[2])
-                print 'Error:',str(e)
+                #print 'Error:',str(e)
                 self.log_status(str(e))
                 if self.user_email:
                     if 'a' in self.how_to_send_email or 'e' in self.how_to_send_email: #All or Exception
@@ -312,7 +317,7 @@ class Job:
             self.clean_job_dict()
             self.backup()
             #delete job folder on Master
-            #self.util.shell_exec('rm -fr %s' % os.path.join(self.util.CLUSTER_MASTER_JOB_DIR,self.path_local))
+            self.util.shell_exec('rm -fr %s' % os.path.join(self.util.CLUSTER_MASTER_JOB_DIR,self.path_local))
         except:
             pass
     

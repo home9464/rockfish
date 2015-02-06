@@ -77,6 +77,7 @@ class Gmail:
                     ntlm_authenticate(mailServer,r"%s" % self.util.SMTP_SERVER_USER,self.util.SMTP_SERVER_PASSWORD)
                 mailServer.sendmail("BioinformaticsService", recipient, msg.as_string())
                 mailServer.close()
+                
             except Exception,e:
                 #pass
                 print "Failed to send email:",e

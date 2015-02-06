@@ -28,9 +28,9 @@ class RockfishMain(object):
     def run(self):
         self.util.make_directories()
         self.util.clean_job_directory()
-        print "[%s] Synchronizing ..." % self.util.now(),
+        print "[%s] Synchronizing ..." % self.util.now()
         self._sync()
-        print '[OK]'
+        print 'Ready'
         while True:
             self.util = imp.load_source('util','util.py')
             self.job = imp.load_source('job','job.py')
