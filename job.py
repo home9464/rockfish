@@ -251,9 +251,10 @@ class Job:
                 successful = False
             
             #delete all input files
-            for f in files_transfered:
-                if not f==self.util.FILE_LOG: 
-                    self.util.shell_exec('rm -f %s' % os.path.join(self.util.CLUSTER_MASTER_JOB_DIR,self.path_local,f))
+            #for f in files_transfered:
+            #    if not f == self.util.FILE_LOG: 
+            #        self.util.shell_exec('rm -f %s' % os.path.join(self.util.CLUSTER_MASTER_JOB_DIR,self.path_local,f))
+            self.util.shell_exec('rm -f %s' % os.path.join(self.util.CLUSTER_MASTER_JOB_DIR,self.path_local,' '.join(files_transfered)))
 
             self.log_status('Upload result files')
 

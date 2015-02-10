@@ -58,18 +58,27 @@ FILE_TAG_RUNNING   = config.get("file", "FILE_TAG_RUNNING")#'r' #empty file as "
 FILE_TAG_DRYRUN   = config.get("file", "FILE_TAG_DRYRUN")#'d' #empty file as "dry-run a job" place holder
 
 #rsync parameters
-RSYNC_QUERY_PARAMS      = '-Lre ssh'
-RYSNC_DOWNLOAD_PARAMS   = '-Lriue ssh' #L-Softlink, a-Archive, i-  
-RYSNC_GET_JOB_PARAMS    = '-Lriue ssh --exclude %s --exclude %s --exclude %s' % (FILE_STDOUT,FILE_STDERR,FILE_LOG)
-RYSNC_UPLOAD_PARAMS     = '-Lrue ssh'
-RYSNC_UPDATE_PARAMS     = '--append -re ssh'#update-only, transfer-over-ssh
 
-#RSYNC_QUERY_PARAMS      = '-Lae ssh'
-#RYSNC_DOWNLOAD_PARAMS   = '-Laiue ssh' #L-Softlink, a-Archive, i-  
-#RYSNC_UPLOAD_PARAMS     = '-Laue ssh'
-#RYSNC_UPDATE_PARAMS     = '--append -re ssh'#update-only, transfer-over-ssh
+"""
+-L: transform symlink into referent file/dir, (copy files)
+-l: copy symlinks as symlinks(copy link only)
+-r: recursive
+-e: ssh
+--append: append data onto shorter files
+-u: skip files that are newer on the receiver
+-p: preserve permissions
+--delete: delete extraneous files from dest dirs
+-a: archive mode; equals -rlptgoD ("r",recursive, "l" copy symlink, "p" 
+"""
+RSYNC_QUERY_PARAMS = '-Lre ssh'
+RYSNC_GET_PARAMS = '-Lriue ssh' #L-Softlink
+RYSNC_GET_JOB_PARAMS = '%s --exclude %s --exclude %s --exclude %s' % (RYSNC_GET_PARAMS,FILE_STDOUT,FILE_STDERR,FILE_LOG)
+RYSNC_PUT_PARAMS = '-Lrue ssh' #put results 
+RYSNC_UPDATE_PARAMS = '--append -e ssh'#logger
+RYSNC_SYNC_PARAMS = '-arue ssh --delete' #sync /bio 
 
-RSYNC_QUERY_INTERVAL    = int(config.get("rsync", "RSYNC_QUERY_INTERVAL_SECONDS"))#10 #seconds, query remote data server for new data
+
+RSYNC_QUERY_INTERVAL = int(config.get("rsync", "RSYNC_QUERY_INTERVAL_SECONDS"))#10 #seconds, query remote data server for new data
 
 
 PBS_QUERY_INTERVAL = int(config.get("pbs", "PBS_QUERY_INTERVAL_SECONDS"))#10 #seconds. Query if a job was completed in this interval.
@@ -87,8 +96,8 @@ MAX_WALLTIME_HOURS = int(config.get("pbs", "MAX_WALLTIME_HOURS"))#240 #hours
 
 #PRIORITY_USER_WALLTIME=240
 #NUM_JOBS_MAX = 6
-NUM_CLUSTER_NODES_AVAILABLE = 5
-NUM_JOBS_UNLIMITED_WALLTIME = 5
+NUM_CLUSTER_NODES_AVAILABLE = len(CLUSTER_NODE_LIST)
+NUM_JOBS_UNLIMITED_WALLTIME = NUM_CLUSTER_NODES_AVAILABLE
 HOURS_LIMITED_WALLTIME = 72
 
 SMTP_SERVER= config.get("misc", "SMTP_SERVER") #"mail.gmail.com"
@@ -337,10 +346,8 @@ def create_parallel_job(job_path):
 
 
 def sync_get_job(path_remote,path_local,files=[]):
-    #download all input files for one job
-    #@path_remote: A/B/C
-    #@files: ['1.txt','2.txt']
-    #@local_path: A_123345
+    """
+    """
     dest = os.path.join(CLUSTER_MASTER_JOB_DIR,path_local) + os.sep
     msg = []
     if files: #download specified files only
@@ -348,14 +355,13 @@ def sync_get_job(path_remote,path_local,files=[]):
             source = os.path.join(LOCAL_SERVER_JOB_PATH,path_remote,f)
             if f.startswith('/'): #full path to a file
                 source = f
-                
-            rsync(RYSNC_DOWNLOAD_PARAMS, source, dest)
-        source = os.path.join(LOCAL_SERVER_JOB_PATH,path_remote,FILE_LOG)
-        msg = rsync(RYSNC_DOWNLOAD_PARAMS, source, dest)
+            rsync(RYSNC_GET_JOB_PARAMS, source, dest)
+        #source = os.path.join(LOCAL_SERVER_JOB_PATH,path_remote,FILE_LOG)
+        #msg = rsync(RYSNC_GET_PARAMS, source, dest)
         
     else: #if no files are specified, then download all the files under that directory.
         source = os.path.join(LOCAL_SERVER_JOB_PATH,path_remote) + os.sep
-        msg = rsync(RYSNC_DOWNLOAD_PARAMS, source, dest)
+        msg = rsync(RYSNC_GET_JOB_PARAMS, source, dest)
     
     """
     .d..tp... ./
@@ -370,13 +376,10 @@ def sync_get_job(path_remote,path_local,files=[]):
     for m in msg:
         if m.startswith('>f'):
             try:
-                fn = m.split()[1]
-                if not fn in (FILE_LOG,FILE_STDOUT,FILE_STDERR):
-                    files_transfered.append(m.split()[1])
+                files_transfered.append(m.split()[1])
             except:
                 pass
     return files_transfered
-        
 
 def sync_get_cmd(path_remote,path_local):
     #download the "cmd.txt" file for job preprocesing.
@@ -384,13 +387,13 @@ def sync_get_cmd(path_remote,path_local):
     """
     source = os.path.join(LOCAL_SERVER_JOB_PATH,path_remote,FILE_CMD)
     dest = os.path.join(CLUSTER_MASTER_JOB_DIR,path_local)+os.sep
-    rsync(RYSNC_DOWNLOAD_PARAMS, source, dest)
+    rsync(RYSNC_GET_PARAMS, source, dest)
 
 def sync_put_result(from_cluster,to_local_server):
     #upload result
     """synchronize from Master to Client
     """
-    return rsync(RYSNC_UPLOAD_PARAMS, from_cluster,to_local_server)
+    return rsync(RYSNC_PUT_PARAMS, from_cluster,to_local_server)
 
 def sync_workers():
     """synchronize from Master to Workers
@@ -398,33 +401,33 @@ def sync_workers():
     for d in CLUSTER_NODE_LIST:
         source = CLUSTER_APP_DIR + os.sep
         dest = '%s:%s/' % (d,CLUSTER_APP_DIR)
-        rsync(RYSNC_UPLOAD_PARAMS,source,dest)
+        rsync(RYSNC_SYNC_PARAMS,source,dest)
         
         source = CLUSTER_DATA_DIR + os.sep
         dest = '%s:%s/' % (d,CLUSTER_DATA_DIR)
-        rsync(RYSNC_UPLOAD_PARAMS,source,dest)
+        rsync(RYSNC_SYNC_PARAMS,source,dest)
 
         source = CLUSTER_PIPELINE_DIR + os.sep
         dest = '%s:%s/' % (d,CLUSTER_PIPELINE_DIR)
-        rsync(RYSNC_UPLOAD_PARAMS,source,dest)
+        rsync(RYSNC_SYNC_PARAMS,source,dest)
 
 def sync_get_app():
     #update /bio/app
     source = LOCAL_SERVER_APP_PATH+os.sep
     dest = CLUSTER_APP_DIR+os.sep
-    return rsync(RYSNC_UPLOAD_PARAMS,source,dest)
+    return rsync(RYSNC_SYNC_PARAMS,source,dest)
     
 def sync_get_data():
     #update /bio/data
     source = LOCAL_SERVER_DATA_PATH+os.sep
     dest = CLUSTER_DATA_DIR+os.sep
-    return rsync(RYSNC_UPLOAD_PARAMS, source,dest)
+    return rsync(RYSNC_SYNC_PARAMS, source,dest)
 
 def sync_get_pipeline():
     #update /bio/conf
     source = LOCAL_SERVER_PIPELINE_PATH + os.sep
     dest = CLUSTER_PIPELINE_DIR+os.sep
-    return rsync(RYSNC_UPLOAD_PARAMS, source,dest)
+    return rsync(RYSNC_SYNC_PARAMS, source,dest)
 
 def update_cmd_params(cmd,reserved,new_params,first_param_index=0):
     """cmd -> ''

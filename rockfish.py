@@ -117,7 +117,8 @@ class RockfishMain(object):
                 else:
                     tmp_jobs.append((job_name,job_owner,job_priority,job_walltime))
                 """
-                
+        
+        #CLUSTER_NODE_LIST        
         available_nodes = self.util.NUM_CLUSTER_NODES_AVAILABLE - len(self.job_running)
         _job_rank = 0
 
