@@ -71,12 +71,11 @@ class Job:
         command_multiple_lines = []
         
         for line in file(file_command): #parse the "cmd" file to get instructions
-            
             line = line.strip()
             if line:
                 if line.startswith('#e '):# "#e abc@def.com"
                     pattern_email = re.compile(r"(?:^|\s)[-a-z0-9_.]+@(?:[-a-z0-9]+\.)+[a-z]{2,6}(?:\s|$)",re.IGNORECASE)
-                    matched_mail = pattern_email.findall(line.lstrip('#e').strip())
+                    matched_mail = pattern_email.findall(line.replace('#e','').strip())
                     if matched_mail and not self.user_email: #can be multiple email-recipients
                         self.user_email = self.gmail.Gmail(matched_mail,self.job_name)
                         
@@ -104,26 +103,26 @@ class Job:
                             self.how_to_send_email = ex
                     
                 elif line.startswith('#o '):# send output to another folder  
-                    self.path_output = line.lstrip('#o').strip()
+                    self.path_output = line.replace('#o','').strip()
                      
                 elif line.startswith('#p'):# execute this job in parallel  
                     self.parallel = True
                     
                 elif line.startswith('#t '):# "#t hours"
                     try:
-                        self.wall_time = int(line.lstrip('#t').strip())
+                        self.wall_time = int(line.replace('#t','').strip())
                     except:
                         self.wall_time = None
                         
                 elif line.startswith('#v'):# "#v version_number"  
                     try:
-                        self.version = line.lstrip('#v').strip()
+                        self.version = line.replace('#v','').strip()
                     except:
                         self.version = None
                         
                     
                 elif line.startswith('##'):# description  
-                    self.description.append(line.lstrip('##').strip())
+                    self.description.append(line.replace('##','').strip())
                     
                 elif line.startswith('#'):# description  
                     self.description.append(line)
@@ -288,7 +287,7 @@ class Job:
                         self.user_email.send(subject = 'Job %s failed' % self.job_name, body_file = os.path.join(self.util.CLUSTER_MASTER_JOB_DIR,self.path_local,self.util.FILE_STDERR))
                         
         except Exception,e:
-            
+            print e
             #delete the RUNNING tag
             #self.util.shell_exec_remote('rm -f %s' % self.util.FILE_TAG_RUNNING,self.path_input)
             if str(e)=='record': #job directory is not writable, but it has been processed before.

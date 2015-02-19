@@ -13,7 +13,7 @@ class RockfishMain(object):
         self.job_running = {} 
         
         #tracking the owner of each job
-        self.job_owner = multiprocessing.Manager().dict()
+        self.job_owner_map = multiprocessing.Manager().dict()
         
         #tracking the final state of job, either "succcessful" or "failed"
         self.job_status = multiprocessing.Manager().dict()
@@ -28,9 +28,10 @@ class RockfishMain(object):
     def run(self):
         self.util.make_directories()
         self.util.clean_job_directory()
-        print "[%s] Synchronizing ..." % self.util.now()
+        print "[%s] Initializing ..." % self.util.now(),
+        sys.stdout.flush()
         self._sync()
-        print 'Ready'
+        print 'OK'
         while True:
             self.util = imp.load_source('util','util.py')
             self.job = imp.load_source('job','job.py')
@@ -46,10 +47,9 @@ class RockfishMain(object):
         #job_dict = alive_jobs
         
         #clean every time?
-        new_jobs,abort_jobs = self.util.sync_query()
+        begin_jobs,abort_jobs = self.util.sync_query()
         #terminate aborted jobs
-        for job_name, create_time in abort_jobs:
-            owner = self.util.get_job_owner(job_name)
+        for job_name, job_owner in abort_jobs:
             try:
                 #the job may be in the states of "running" or "waiting" 
                 pa = self.job_running.get(job_name,None)
@@ -58,7 +58,7 @@ class RockfishMain(object):
                     ji = pa[1]
                     #p.terminate()
                     self.util.shell_exec('kill -9 %s' % pid) #SIGKILL is better than SIGTERM?
-                    ps = multiprocessing.Process(target=self.abort,args=(owner,job_name,ji,self.job_owner))
+                    ps = multiprocessing.Process(target=self.abort,args=(job_owner,job_name,ji,self.job_owner_map))
                     ps.start()
                     #ps.join()
                     #lastly remove this job on cluster's master node
@@ -81,19 +81,20 @@ class RockfishMain(object):
         pending_jobs = Queue.PriorityQueue()
 
         #accept new jobs
-        for job_name,create_time in new_jobs:
+        for job_name,job_owner in begin_jobs:
             #job name is the input path.
             if not self.job_running.has_key(job_name):  #if this job was not running
                 #print self.util.extract_email_from_cmd(job_name)
-                job_owner = self.util.get_job_owner(job_name)
+                #job_owner = self.util.LOCAL_SERVER_USER #'bioservice'
                 priority,max_num_jobs,wallhours = self.util.get_user_priority(job_owner)
+                
                 tmp_job_dict.setdefault(job_owner,[]).append(job_name)
-                myjobs =  self.job_owner.get(job_owner) #check out how many jobs are running under this user
+                myjobs =  self.job_owner_map.get(job_owner) #check out how many jobs are running under this user
+                
                 if myjobs: 
                     _total = len(myjobs) + len(tmp_job_dict[job_owner])
                     if _total < max_num_jobs: #
                         tmp_jobs.append((job_name,job_owner,priority,wallhours))
-                            
                 else:#no other running jobs
                     _total = len(tmp_job_dict[job_owner])
                     if _total < max_num_jobs:
@@ -104,7 +105,7 @@ class RockfishMain(object):
                 job_walltime = self.util.get_job_walltime(job_priority)
                 if not self.util.PRIORITY_USER.has_key(job_owner):#not a priority user
                     tmp_job_dict.setdefault(job_owner,[]).append(job_name)
-                    myjobs =  self.job_owner.get(job_owner) #how many jobs are running under this user?
+                    myjobs =  self.job_owner_map.get(job_owner) #how many jobs are running under this user?
                     if myjobs: 
                         _total = len(myjobs) + len(tmp_job_dict[job_owner])
                         if _total <= self.util.NUM_JOBS_MAX:
@@ -124,7 +125,6 @@ class RockfishMain(object):
 
         for t in tmp_jobs:
             pending_jobs.put(t) #push it back
-        
         #return
         #change the RANK
         """
@@ -156,7 +156,7 @@ class RockfishMain(object):
             if not pending_jobs.empty():
                 job_name,job_owner,job_priority,job_walltime = pending_jobs.get()#pop a pending job from the queue
                 #print 'Run:', job_name
-                myjobs =  self.job_owner.get(job_owner,[])#check out other jobs belong to this user
+                myjobs =  self.job_owner_map.get(job_owner,[])#check out other jobs belong to this user
                 """
                 if myjobs: #this user has some job in process
                     _priority,_max_num_jobs,_wallhours = self.util.get_user_priority(job_owner)
@@ -170,9 +170,9 @@ class RockfishMain(object):
                 """
                 self.job_index += 1
                 myjobs.append(self.job_index)
-                self.job_owner[job_owner] = myjobs
+                self.job_owner_map[job_owner] = myjobs
                 #print job_idx,job_owner,job_name,job_walltime
-                p = multiprocessing.Process(target=self.begin,args=(job_owner,job_name,self.job_index,job_walltime,self.job_owner))
+                p = multiprocessing.Process(target=self.begin,args=(job_owner,job_name,self.job_index,job_walltime,self.job_owner_map))
                 p.start()
                 self.job_running[job_name] = (p,self.job_index)
     

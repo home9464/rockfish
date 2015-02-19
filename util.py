@@ -181,6 +181,7 @@ def shell_exec(cmd,shell=True):
     @cmd: a string represent the command like "ls -al *"
     @return: The [standard output] of your command ( [] if the cmd does not have standard output)
     """
+    #print cmd
     #ALL outputs will be redirected to stdout
     #do not use "time command" to wrap any commands. It is going to disrupt.
     p = subprocess.Popen(cmd,stdout=subprocess.PIPE,stderr=subprocess.STDOUT,shell=shell)
@@ -204,13 +205,6 @@ def now():
     """
     return time.strftime("%A, %b/%d/%Y, %H:%M:%S", time.localtime())
 
-def get_job_owner(job_name):
-    cmd = "ssh %s@%s 'stat -c %%U %s'" % (LOCAL_SERVER_USER,LOCAL_SERVER_NAME,os.path.join(LOCAL_SERVER_JOB_DIR,job_name))
-    msg = shell_exec(cmd)
-    if msg:
-        return msg[0]
-    else:
-        return "anonymous"
 
 def get_job_priority(job_owner):
     return PRIORITY_USER.get(job_owner,100)
@@ -272,12 +266,13 @@ def rsync(param,source,dest):
     #print 'rsync %s %s %s' % (param,source,dest)
     return shell_exec('rsync %s %s %s' % (param,source,dest))
     
-def sync_query():
+def sync_query_old():
     """
     query remote client machines for pending jobs
     """
     
     #query pending jobs
+    #rsync -Lre ssh bioservice@tango:/project/ | awk '{print $1 "?" $3"#"$4 "?" $5}'
     cmd = """rsync %s %s | awk '{print $1 "?" $3"#"$4 "?" $5}'""" % (RSYNC_QUERY_PARAMS,LOCAL_SERVER_JOB_PATH + os.sep)
     
     #Link of folder may not work
@@ -340,6 +335,41 @@ def sync_query():
 
     #else:
     #    return begin_jobs,abort_jobs
+
+def sync_query():
+    """
+    query remote client machines for pending jobs
+    
+    @return: [('/project/A',)]
+    """
+    cmd = """ssh %s@%s "find %s -type f -printf '%%u %%p\\n'" """ % (LOCAL_SERVER_USER,LOCAL_SERVER_NAME,LOCAL_SERVER_JOB_DIR)
+    fnames = shell_exec(cmd)
+    begin_jobs = []
+    abort_jobs = []
+    if fnames:
+        filemap = {}
+        usermap = {}
+        for fname in fnames:
+            try:
+                owner, fn = fname.split(' ')
+                if not os.path.basename(fn).startswith('.'): #not a hidden file
+                    job_folder_name = os.path.dirname(fn).replace(LOCAL_SERVER_JOB_DIR+"/",'')
+                    filemap.setdefault(job_folder_name,[]).append(os.path.basename(fn))
+                    usermap[job_folder_name] = owner
+            except Exception,e:
+                pass
+        
+        for job_folder_name, job_folder_files in filemap.items():
+            if FILE_TAG_ABORT in job_folder_files: #the user wants to abort this job after submission.
+                abort_jobs.append((job_folder_name,usermap[job_folder_name]))
+            
+            else:        
+                if (FILE_TAG_BEGIN in job_folder_files) or (FILE_TAG_DRYRUN in job_folder_files) : #the job is ready to run , either "b" or "d" is present
+                    #and it has a "cmd.txt" file
+                    if FILE_CMD in job_folder_files:
+                        begin_jobs.append((job_folder_name,usermap[job_folder_name]))
+    return (begin_jobs,abort_jobs)
+
 
 def create_parallel_job(job_path):
     pass
@@ -576,6 +606,9 @@ def normalize_params(p,token='"'):
                         raise Exception('Illegal parameter %s' % vv)
     return m
 
+
+"""
+
 def get_next_jobdir(basename,basepath='.'):
     ds = []
     for root, dirs, files in os.walk(basepath):
@@ -596,7 +629,6 @@ def get_next_jobdir(basename,basepath='.'):
         job_folder_index = 1
     return basename+str(job_folder_index)
 
-"""
 def get_free_nodes():
     free_nodes=0
     nodes = range(241,253)
@@ -680,5 +712,13 @@ def query_files(path_remote,suffix='.txt.gz'):
     for line in files: 
         ret.append(line)
     return ret
+
+def get_job_owner(job_name):
+    cmd = "ssh %s@%s 'stat -c %%U %s'" % (LOCAL_SERVER_USER,LOCAL_SERVER_NAME,os.path.join(LOCAL_SERVER_JOB_DIR,job_name))
+    msg = shell_exec(cmd)
+    if msg:
+        return msg[0]
+    else:
+        return "anonymous"
 
 """

@@ -1,0 +1,110 @@
+http://willworkforscience.blogspot.com/2012/01/quick-and-dirty-guide-for-parallelizing.html
+
+Assume we have 6 computers, named a0-a5. We will use a0 as the master while a1-a5 were slaves.
+
+#############################################
+#Worker Nodes, a1 a2 a3 a4 a5
+#############################################
+sudo vim /etc/resolvconf/resolv.conf.d/base
+nameserver 10.100.1.35
+nameserver 10.100.1.36
+search fluidigm.com
+sudo resolvconf -u
+
+dns-search example.com sales.example.com dev.example.com
+dns-nameservers 192.168.3.45 192.168.8.10
+
+	
+sudo apt-get update
+sudo apt-get install r-base -y
+sudo apt-get install torque-client torque-mom -y
+
+mkdir /home/hadoop/bio
+sudo ln -s /home/hadoop/bio /bio
+sudo chown -R hadoop /bio
+sudo chgrp -R hadoop /bio
+
+#specify the host
+echo a0 | sudo tee /etc/torque/server_name
+echo a0 | sudo tee /var/spool/torque/server_name
+
+#############################################
+#Master Node, a0
+#############################################
+
+#on Master
+sudo apt-get install torque-server torque-scheduler torque-client
+
+#stop PBS daemon
+sudo qterm
+sudo /etc/init.d/torque-mom stop
+sudo /etc/init.d/torque-scheduler stop
+sudo /etc/init.d/torque-server stop
+
+#set up the host name
+echo $HOSTNAME | sudo tee --append /etc/torque/server_name
+echo $HOSTNAME | sudo tee --append /var/spool/torque/server_name
+
+sudo pbs_server -t create
+
+#add workers into nodes
+for i in a1 a2 a3 a4 a5 a6 a7 a8 a9 a10;do echo "${i} np=4" | sudo tee --append /var/spool/torque/server_priv/nodes; done
+
+sudo qterm
+sudo pbs_server
+sudo pbs_mom
+
+#Created a queue "bioinformatics"
+sudo qmgr -c 'create queue bioinformatics'
+sudo qmgr -c 'set queue bioinformatics queue_type = Execution'
+sudo qmgr -c 'set queue bioinformatics resources_default.nodes = 10'
+sudo qmgr -c 'set queue bioinformatics resources_default.walltime = 240:00:00'
+sudo qmgr -c 'set queue bioinformatics enabled = True'
+sudo qmgr -c 'set queue bioinformatics started = True'
+sudo qmgr -c 'set server default_queue = bioinformatics'
+sudo qmgr -c 'set server scheduling = True'
+
+#start scheduler
+sudo pbs_sched
+
+#make a test
+pbsnodes -a
+
+#submit a job
+qsub -I -l nodes=1:ppn=4
+
+#################################
+sudo mkdir /project
+sudo chown -R bioservice /project
+sudo chgrp -R software /project
+
+/dev/sdb /hello ext4 acl,errors=remount-ro 0       1
+
+#add new user "li" with primary group "software"
+sudo adduser --ingroup software bioservice
+sudo adduser --ingroup software li
+
+#add existing user "david" to group "software" 
+sudo usermod -g software david
+
+#remove user "hadoop" from group  "software"
+sudo gpasswd -d hadoop software
+
+#ACL control, https://help.ubuntu.com/community/FilePermissionsACLs
+sudo apt-get install acl
+
+#remove any existing ACLs
+sudo setfacl -b /project
+
+#sticky bit, so grouop users can not write other's folder. Only owner can write 
+sudo chmod +t /project
+
+#set current ACL
+sudo setfacl -m u::rwx,g::rwx,o::r-x /project
+
+#set default ACL, use/owner has full access. group and other has "r-x" only
+sudo setfacl -d -m u::rwx,g::rwx,o::r-x /project
+
+#enable user "bioserv" to write any files, like "root"
+sudo setfacl -d -m u:bioservice:rwx /project
+
