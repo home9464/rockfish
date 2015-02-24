@@ -88,6 +88,7 @@ def convert2fastq():
     
     print "Synchronize"
     for t in tobe_converted:
+        #print t
         cmd_sync = "rsync -aru %s::%s/%s %s/" % (IP_MISEQ,PATH_MISEQ,t,PATH_LOCAL)
         shell_exec(cmd_sync)
         
@@ -99,11 +100,9 @@ def convert2fastq():
         cmd = []
         cmd.append('find %s -name "*.bcl" -exec gzip {} \;' % src)
         cmd.append('%s -R %s -o %s 2>/dev/null' % (bcl2fastq,src,dest))
-        cmd.append('cp %s/*.xml %s/SampleSheet.csv %s/' % (dest,src,dest))
+        cmd.append('cp %s/*.xml %s/SampleSheet.csv %s/ || true' % (dest,src,dest))
         cmd.append('hdfs dfs -put %s %s/' % (dest,PATH_HDFS))
-        cmd.append('rm -fr %s %s' % (src,dest))
-        #print ' && '.join(cmd)
-        #break
+        cmd.append('rm -fr %s' % dest)
         shell_exec(' && '.join(cmd))
         
 convert2fastq()
